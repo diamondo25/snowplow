@@ -29,7 +29,8 @@ import scala.collection.JavaConversions._
 // Iglu
 import iglu.client.{
   SchemaCriterion,
-  Resolver
+  Resolver,
+  SchemaKey
 }
 import iglu.client.validation.ValidatableJsonMethods._
 
@@ -228,4 +229,82 @@ object SnowplowAdapter {
       } yield v
 
   }
+
+  /**
+   * The Redirect Adapter is a pre-processor on URI redirections
+   * which should conform to the Snowplow Tracker Protocol v2.
+   * This adapter's toRawEvents method round-trips through the Tp2 Adapter's
+   * own toRawEvents method.
+   */
+  object Redirect extends Adapter {
+
+    // Tracker version for an Iglu-compatible webhook
+    private val TrackerVersion = "r-tp2"
+
+    // Schema for a URI redirect. Could end up being an event or a context
+    // depending on what else is in the payload
+    private object SchemaUris {
+      val UriRedirect = SchemaKey("com.snowplowanalytics.snowplow", "uri_redirect", "jsonschema", "1-0-0").toSchemaUri
+    }
+
+    /**
+     * Converts a CollectorPayload instance into raw events.
+     * XXX
+     *
+     * @param payload The CollectorPaylod containing one or more
+     *        raw events as collected by a Snowplow collector
+     * @param resolver (implicit) The Iglu resolver used for
+     *        schema lookup and validation. Not used
+     * @return a Validation boxing either a NEL of RawEvents on
+     *         Success, or a NEL of Failure Strings
+     */
+    def toRawEvents(payload: CollectorPayload)(implicit resolver: Resolver): ValidatedRawEvents = {
+
+      val params = toMap(payload.querystring)
+      if (params.isEmpty) {
+        "Querystring is empty: cannot be a valid URI redirect".failNel
+      } else {
+        params.get("u") match {
+          case None    => "Querystring does not contain u parameter: not a valid URI redirect".failNel
+          case Some(u) => {
+
+            val uriRedirect = createUriRedirect(u)
+            val newParams =
+              if params.contains("e") {
+                // Already have an event so add the URI redirect as a context (more fiddly)
+                (params.get("cx"), params.get("co")) match {
+                  case (None, None)           => createCoWith(uriRedirect)
+                  case (None, Some(existing)) => addContextToCo(uriRedirect, existing)
+                  case (Some(existing), _)    => addContextToCx(uriRedirect, existing)
+                }
+              } else {
+                // Add URI redirect as an unstructured event 
+                createUeWith(uriRedirect)
+              }
+
+            // Reminders:
+            // We have to add platform p
+            // We have to add v
+
+            // Now let's roundtrip through Tp2.toRawEvents
+        }
+      }
+    }
+  }
+
+            // First construct our entity
+            val uriRedirect =
+              ("schema" -> schema) ~
+              ("data" -> (
+                ("uri" -> u)
+              ))
+
+              val json = compact {
+                ("schema" -> UnstructEvent) ~
+                ("data"   -> uriRedirect)
+              }
+              Map(
+                "e"     -> "ue",
+                "ue_pr" -> json)
+
 }

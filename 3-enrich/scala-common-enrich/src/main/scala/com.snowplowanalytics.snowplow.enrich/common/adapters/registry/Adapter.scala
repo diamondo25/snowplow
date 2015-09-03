@@ -42,7 +42,7 @@ import utils.{JsonUtils => JU}
 trait Adapter {
 
   // The Iglu schema URI for a Snowplow unstructured event
-  private val UnstructEvent = SchemaKey("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", "1-0-0").toSchemaUri
+  val UnstructEvent = SchemaKey("com.snowplowanalytics.snowplow", "unstruct_event", "jsonschema", "1-0-0").toSchemaUri
 
   // Signature for a Formatter function
   type FormatterFunc = (RawEventParameters) => JObject
